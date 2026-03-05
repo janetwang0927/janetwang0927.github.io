@@ -1,0 +1,1637 @@
+
+<!DOCTYPE html>
+<!-- CopyRight: Janet Bradley 2023-2025 Jan -->
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧾</text></svg>"/>
+        
+        <link rel="manifest" href="manifest.json?v=2" />
+        <title>Quiz</title>
+    <style>
+        .wrongAnswer,
+        .rightAnswer {
+            border-left-width: thick;
+        }
+
+        .wrongAnswer {
+            border-color: red;
+        }
+
+        .rightAnswer {
+            border-color: lightgreen;
+        }
+    </style>
+</head>
+
+<body>
+    <noscript>Javascript is Disabled. Please enabled it for this site to work</noscript>
+    <script src="vue.global.js"></script>
+    <!-- <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script> -->
+    <div>
+        <div id="app">
+            <template v-if="quiz">
+                <h2><a href="#" @click.prevent="newQuiz">Quiz</a>: {{quiz.name}}</h2>
+
+                <div>
+                    <pre>{{ quiz.question }}</pre>
+
+                    <p v-if="quiz.speech">
+                        <input type="button" value="What is said? 🔊" @click="sayIt(quiz.speech)" />
+                    </p>
+
+                </div>
+                <template v-if="quiz.quizType == 'vocab'">
+                    <input type="text" placeholder="?" maxlength="20" :class="answerStateClass" v-model="userAnswer"
+                        @change.enter="checkAnswer" />
+                    <input type="button" value="check" @click="checkAnswer()" />
+                </template>
+
+                <template v-if="quiz.quizType == 'date_picker'">
+                    <input type="date" placeholder="?" :class="answerStateClass" v-model="userAnswer"
+                        @change.enter="checkAnswer" />
+                    <input type="button" value="check" @click="checkAnswer()" />
+                </template>
+
+                <template v-if="quiz.quizType == 'time_picker'">
+                    <input type="time" placeholder="?" :class="answerStateClass" v-model="userAnswer"
+                        @change.enter="checkAnswer" />
+                    <input type="button" value="check" @click="checkAnswer()" />
+                </template>
+
+                <template v-if="quiz.quizType == 'qa'">
+                    <input type="number" placeholder="?" maxlength="6" :class="answerStateClass" :min="quizMinNumber"
+                        :max="quizMaxNumber" v-model.number="userAnswer" @change.enter="checkAnswer" />
+                    <input type="button" value="check" @click="checkAnswer()" />
+                </template>
+
+                <template v-if="quiz.quizType == 'tf'">
+                    <label for="quiz_answer_input_yes">Yes</label>
+                    <input type="radio" id="quiz_answer_input_yes" name="quiz_tf_quiz" value="true" v-model="userAnswer"
+                        @click="setAndCheckAnswer(true)">
+                    <br>
+                    <label for="quiz_answer_input_no">No</label>
+                    <input type="radio" id="quiz_answer_input_no" name="quiz_tf_quiz" value="false" v-model="userAnswer"
+                        @click="setAndCheckAnswer(false)">
+                </template>
+
+                <template v-if="quiz.quizType == 'vocab:stt_choices'">
+                    <template v-for="(c, i) in quiz.choices" :key="c">
+                        <input type="button" :value="c" @click="setAndCheckAnswer(c)">
+                        <span v-if="(i + 1) < quiz.choices.length"> - </span>
+                    </template>
+                </template>
+
+                <div id="quiz_feedback">
+                    <p>
+                        Correct?
+                        <span v-if="answerState === null"></span>
+                        <span v-if="answerState === false">☹️</span>
+                        <span v-if="answerState === true">✔️</span>
+                    </p>
+                </div>
+            </template>
+            <br>
+            <br>
+            <details>
+                <summary>Score</summary>
+                <fieldset>
+                    <div>
+                        {{quizUserAttemptCorrect}} / {{quizUserAttempts.length}}
+                    </div>
+                    <div>
+                        <input type="button" @click="resetAttempts" value="Reset Score">
+                    </div>
+                </fieldset>
+            </details>
+            <details>
+                <summary>Visuals</summary>
+                <fieldset>
+                    <table>
+                        <thead>
+                            <th>Graphs</th>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <pre>{{quiz?.viz}}</pre>
+                                </td>
+                            </tr>
+                            <tr style="overflow: scroll; max-width: 20vw;">
+                                <td>
+                                    <input type="button" value="Create Range" v-if="!rangeViz"
+                                        @click="createRangeViz" />
+                                    <pre>{{rangeViz}}</pre>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </fieldset>
+            </details>
+            <details open>
+                <summary>Options</summary>
+                <fieldset>
+                    <div>
+                        <input type="button" @click="newQuiz" value="New Quiz">
+
+                        <table>
+                            <tbody>
+                                <tr>
+                                    <td>Quiz Type</td>
+                                    <td>
+                                        <select v-model="quizName">
+                                            <template v-for="{name, value} in quizOptions" :key="name">
+                                                <option :value="value">{{name}}</option>
+                                            </template>
+                                        </select>
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <td>Range</td>
+                                    <td>
+                                        <input type="number" min="0" max="99999" v-model="quizMinNumber">
+                                        -
+                                        <input type="number" min="0" max="99999" v-model="quizMaxNumber">
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>N</td>
+                                    <td>
+                                        <input type="number" min="0" max="900" v-model="quizNNumber">
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <td>Difficulty</td>
+                                    <td>
+                                        <input type="button" @click="setDiffEasy" value="Easy" />
+                                        <input type="button" @click="setDiffNormal" value="Normal" />
+                                        <input type="button" @click="setDiffHard" value="Hard" />
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <td>Voices</td>
+                                    <td>
+                                        <div>
+                                            <label>
+                                                Pick Random Voice <input type="checkbox" v-model="useRandomVoice" />
+                                            </label>
+                                        </div>
+                                        <select :disabled="useRandomVoice" v-model="voiceChoice">
+                                            <option value="">- Please select voice</option>
+
+                                            <template v-for="(voice, i) in voices" :key="voice.id">
+                                                <option :value="voice.id">{{voice.name}}</option>
+                                            </template>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Vocab</td>
+                                    <td>
+                                        <input type="text" v-model="quizVocabWords" />
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </fieldset>
+            </details>
+            <details>
+                <summary>Dev Test</summary>
+                <fieldset>
+                    date: <input type="date"> <br>
+                    time: <input type="time"> <br>
+                    tel: <input type="tel"> <br>
+                    datetime: <input type="datetime"> <br>
+                    datetime-local: <input type="datetime-local"> <br>
+                    quiz.answer:
+                    <pre>{{quiz?.answer}}</pre>
+                    <br>
+                    userAnswer:
+                    <pre>{{userAnswer}}</pre>
+                </fieldset>
+            </details>
+        </div>
+    </div>
+    <script>
+        const { createApp } = Vue
+
+        const ENGLISH_VOWELS = [
+            {
+                "letter": "a",
+                "shortVowel": [
+                    "cat",
+                    "mat",
+                    "rat",
+                    "hat",
+                    "bat",
+                    "man"
+                ],
+                "longVowel": [
+                    "late",
+                    "rate",
+                    "mate",
+                    "hate",
+                    "bate",
+                    "day",
+                    "may",
+                    "say",
+                    "way",
+                    "lay"
+                ]
+            },
+            {
+                "letter": "e",
+                "shortVowel": [
+                    "bet",
+                    "pet",
+                    "met",
+                    "let",
+                    "net",
+                    "pen",
+                    "men",
+                    "bed",
+                    "red",
+                    "hen"
+                ],
+                "longVowel": [
+                    "meet",
+                    "beat",
+                    "feat",
+                    "neat",
+                    "peat",
+                    "he",
+                    "me",
+                    "we",
+                    "she",
+                    "be"
+                ]
+            },
+            {
+                "letter": "i",
+                "shortVowel": [
+                    "hit",
+                    "sit",
+                    "bit",
+                    "kit",
+                    "pit",
+                    "it",
+                    "is",
+                    "his"
+                ],
+                "longVowel": [
+                    "lite",
+                    "site",
+                    "bite",
+                    "kite",
+                    "pite",
+                    "I",
+                    "my",
+                    "why",
+                    "lie",
+                    "tie"
+                ]
+            },
+            {
+                "letter": "o",
+                "shortVowel": [
+                    "hot",
+                    "lot",
+                    "pot",
+                    "not",
+                    "dot",
+                    "got"
+                ],
+                "longVowel": [
+                    "note",
+                    "vote",
+                    "rote",
+                    "dote",
+                    "mote",
+                    "go",
+                    "no",
+                    "so",
+                    "show",
+                    "old"
+                ]
+            },
+            {
+                "letter": "u",
+                "shortVowel": [
+                    "cut",
+                    "hut",
+                    "but",
+                    "nut",
+                    "rut",
+                    "us",
+                    "up",
+                    "run",
+                    "sun"
+                ],
+                "longVowel": [
+                    "mute",
+                    "cute",
+                    "flute",
+                    "brute",
+                    "lute",
+                    "use",
+                    "cube",
+                    "mule",
+                    "rude",
+                    "tune"
+                ]
+            }
+        ];
+
+        class StorageService {
+            constructor() {
+                this.STORAGE_KEY = 'quizApp.lastQuizName';
+            }            
+            fetchLastQuizName() {
+                try{
+                    return localStorage.getItem(this.STORAGE_KEY) || null;
+                }catch(e){
+                    console.error(e);
+                }
+                return null;
+            }
+            saveLastQuizName(quizName) {
+                localStorage.setItem(this.STORAGE_KEY, quizName);
+            }
+        }
+
+        class SpeechService {
+            static async init() {
+                let tries = 0;
+
+                function initVoices() {
+                    const voices = window.speechSynthesis.getVoices();
+
+                    if (voices && voices.length) {
+                        return voices;
+                    }
+
+                    tries += 1;
+
+                    if (tries < 5) {
+                        return new Promise((resolve) => {
+                            setTimeout(() => {
+                                resolve(initVoices());
+                            }, tries * 200);
+                        });
+                    }
+
+                    return null;
+                }
+
+                return initVoices();
+            }
+
+            static async getVoices() {
+                return window.speechSynthesis.getVoices();
+            }
+
+            static async getDefaultVoice() {
+                const voices = await SpeechService.getVoices();
+                return voices.find(v => v.default) || voices[0];
+            }
+            static async findVoiceById(voiceId) {
+                const voices = await SpeechService.getVoices();
+                return voices.find(v => v.voiceURI == voiceId);
+            }
+
+            static async getVoicesInLang(langCodePrefix) {
+                const voices = await SpeechService.getVoices();
+                return voices.filter(v => v.lang.startsWith(langCodePrefix));
+            }
+
+            static async getVoiceDetails() {
+                const voices = await SpeechService.getVoices();
+
+                return voices.map(v => ({
+                    id: v.voiceURI,
+                    name: `${v.lang} - ${v.name}`
+                })).sort((a, b) => a.name.localeCompare(b.name));
+            }
+
+            static async getRandomVoice(langCodePrefix) {
+                let voices = await SpeechService.getVoices();
+
+                if (langCodePrefix) {
+                    voices = voices.filter(v => v.lang.startsWith(langCodePrefix));
+                }
+
+                return getRandomElement(voices);
+            }
+
+            static async getRandomEnglishVoice() {
+                return SpeechService.getRandomVoice("en-");
+            }
+
+            static async sayIt({ text, useRandomVoice, voiceChoice }) {
+                return new Promise(async (resolve) => {
+                    const msg = new SpeechSynthesisUtterance();
+                    let voice = null;
+                    const hasVoiceSelected = !!(voiceChoice && !useRandomVoice);
+
+                    if (hasVoiceSelected) {
+                        voice = await SpeechService.findVoiceById(voiceChoice);
+                    } else {
+                        voice = await SpeechService.getRandomEnglishVoice();
+                    }
+
+                    msg.voice = voice;
+                    msg.text = text;
+
+                    msg.onend = function (e) {
+                        resolve();
+                    };
+
+                    speechSynthesis.speak(msg);
+                });
+            }
+        };
+
+        // from: https://stackfame.com/5-ways-to-shuffle-an-array-using-moder-javascript-es6
+        function shuffle(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function getRange(start, end) {
+            return Array.from({
+                length: Math.abs(1 + end - start)
+            })
+                .fill(start)
+                .map((c, i) => c + i);
+        }
+
+        // return number in [min, max]
+        function randomNumberInRange(min, max) {
+            const x = Math.abs(max - min);
+            return min + Math.round(Math.random() * x);
+        }
+
+        function randomNumbersInRange(min, max, count) {
+            return Array.from({ length: count }).fill(0).map(() => randomNumberInRange(min, max));
+        }
+
+        // Returns a list of random list of numbers in sequential order within a [min, max] range.
+        function getRandomRange(min, max, count = 4) {
+            const x = randomNumberInRange(min, max);
+            return getRange(x, Math.min(x + count, max));
+        }
+
+        function getRandomBool() {
+            return Math.random() < 0.5;
+        }
+
+        function getRandomElement(arr) {
+            return arr[Math.floor(Math.random() * arr.length)]
+        }
+
+        // sorts smallest to highest
+        function sortNums(nums) {
+            return nums.sort((a, b) => a - b);
+        }
+
+        function formatNumber(x) {
+            const str = x.toLocaleString();
+
+            if (/,/.test(str)) {
+                return `"${str}"`;
+            }
+            return str;
+        }
+
+        function formatXAsBlock(x, token, width, joinToken) {
+            const n = Math.abs(x);
+            const minHeight = Math.floor(n / width);
+            const lastLine = token.repeat(n % width);
+            const lines = [];
+            const maxTokenWidth = (0 < minHeight) ? token.repeat(width) : 0;
+
+            for (let i = 0; i < minHeight; i++) {
+                lines.push(maxTokenWidth);
+            }
+            lines.push(lastLine);
+
+            return lines.join(joinToken || '\n');
+        }
+
+        function createXYBlock(x, y) {
+            const token = 'x', width = 10;
+            return `${x}:\n${formatXAsBlock(x, token, width)}\n\n${y}:\n${formatXAsBlock(y, token, width)}\n`;
+        }
+
+        function shuffleNumbersInAddition(expression) {
+            return shuffleNumbersInExpression(expression, /\s+[+]\s+/g, " + ");
+        }
+        function shuffleNumbersInMult(expression) {
+            return shuffleNumbersInExpression(expression, /\s+[x]\s+/g, " x ");
+        }
+
+        function shuffleNumbersInExpression(expression, delimiterRegex, delimiter) {
+            return shuffle(expression.split(delimiterRegex)).join(delimiter)
+        }
+
+        function randomIndexInArray(arr) {
+            return ~~(Math.random() * arr.length);
+        }
+
+        function randomUniqIndexesInArray(arr, count) {
+            count = Math.min(count, arr.length);
+            const indexes = Array.from({ length: arr.length }).fill(0).map((c, i) => i);
+
+            return shuffle(indexes).slice(0, count);
+        }
+
+        function randomElementsInArray(arr, count) {
+            return randomUniqIndexesInArray(arr, count).map((c) => arr[c]);
+        }
+
+        function getRandomDateParts(year, month, day) {
+            const date = new Date(year, month, day);
+            const options = {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+            };
+            const formattedDate = new Intl.DateTimeFormat("en-US", options).format(date);
+            const dateParts = formattedDate.toLowerCase().replace(/[,]/g, '').split(" ");
+
+            return {
+                month,
+                day,
+                year,
+                dow: dateParts[0],
+                monthName: dateParts[1],
+                formattedDate,
+                dateParts
+            }
+        }
+
+        function formatDatePartsToInputDateValue(year, month, day) {
+            const m = ("" + (month + 1)).padStart(2, 0);
+            const d = ("" + day).padStart(2, 0);
+
+            return `${year}-${m}-${d}`;
+        }
+
+        function getDatePickerQuiz() {
+            const year = randomNumberInRange(2010, 2025);
+            const month = randomNumberInRange(0, 12);
+            const day = randomNumberInRange(0, 31);
+            const dateObj = getRandomDateParts(year, month, day);
+
+            const question = `Select the date: ${dateObj.formattedDate}`;
+            const answer = formatDatePartsToInputDateValue(year, month, day);
+
+            return {
+                quizType: 'date_picker',
+                name: `Date: Pick Date`,
+                question,
+                answer
+            }
+        }
+
+        function getDatePartQuiz() {
+            const year = randomNumberInRange(1700, 2100);
+            const month = randomNumberInRange(0, 12);
+            const day = randomNumberInRange(0, 31);
+            const dateObj = getRandomDateParts(year, month, day);
+            const { dow, monthName, formattedDate, dateParts } = dateObj;
+            let question, answer;
+
+            if (getRandomBool()) {
+                question = `What day of the week is ${formattedDate}?`;
+                answer = dow;
+            } else if (getRandomBool()) {
+                question = `What year is ${formattedDate}?`;
+                answer = year;
+            } else if (getRandomBool()) {
+                question = `What month is ${formattedDate}?`;
+                answer = monthName;
+            } else {
+                question = `What day is ${formattedDate}?`;
+                answer = day;
+            }
+
+            return {
+                quizType: 'vocab',
+                name: `Date: Date parts`,
+                question,
+                answer
+            }
+        }
+
+        function formatTimeFromParts(hour, minutes, amPM) {
+            const h = ("" + hour).padStart(2, 0);
+            const m = ("" + minutes).padStart(2, 0);
+
+            return `${h}:${m} ${amPM}`;
+        }
+
+        function getDigitalClockQuiz() {
+            const hour = randomNumberInRange(1, 12);
+            const minutes = randomNumberInRange(0, 60);
+            const amPM = getRandomElement(["am", "pm"]);
+            const formattedTime = formatTimeFromParts(hour, minutes, amPM);
+
+            if (getRandomBool()) {
+                question = `What hour is ${formattedTime}?`;
+                answer = hour;
+            } else {
+                question = `What minute is ${formattedTime}?`;
+                answer = minutes;
+            }
+
+            return {
+                quizType: 'vocab',
+                name: `Time: Time parts`,
+                question,
+                answer
+            }
+        }
+
+        function getTimePickerQuiz() {
+            const hour = randomNumberInRange(1, 12);
+            const minutes = randomNumberInRange(0, 60);
+            const amPM = getRandomElement(["am", "pm"]);
+            const formattedTime = formatTimeFromParts(hour, minutes, amPM);
+
+            const question = `Pick the time: ${formattedTime}`;
+            const h = (amPM === 'pm') ? 12 + hour : hour;
+            const answer = `${("" + h).padStart(2, 0)}:${("" + minutes).padStart(2, 0)}`;
+
+            return {
+                quizType: 'time_picker',
+                name: `Time: Time Picker`,
+                question,
+                answer
+            }
+        }
+
+        function getXPlusQuiz(x, xText, { quizMinNumber, quizMaxNumber }) {
+            const i = randomNumberInRange(quizMinNumber, quizMaxNumber);
+
+            let question = shuffleNumbersInAddition(`${formatNumber(i)} + ${xText}`);
+
+            const answer = x + i;
+
+            return {
+                quizType: 'qa',
+                name: `Addition: Plus ${xText}`,
+                question,
+                answer
+            }
+        }
+
+        function createXTimesYBlock(x, y) {
+            const fn = (a, b) => {
+                const times = Math.abs(b);
+                const sign = Math.sign(a * b);
+                const n = sign * Math.abs(a);
+                return Array.from({ length: times }).fill(n).join(" + ");
+            };
+            if ((x * y) === 0) {
+                if (x === 0) {
+                    return fn(x, y);
+                }
+                return fn(y, x);
+            }
+            if (x == y) {
+                return fn(x, y);
+            }
+
+            return `a) ${fn(x, y)}\nb) ${fn(y, x)}`;
+        }
+
+        function getAXNTimeQuiz({ quizMinNumber, quizMaxNumber, quizNNumber }) {
+            const i = randomNumberInRange(quizMinNumber, quizMaxNumber);
+
+            let question = shuffleNumbersInMult(`${localN(i)} x ${quizNNumber}`);
+
+            const answer = quizNNumber * i;
+
+            return {
+                quizType: 'qa',
+                name: `Multiplication: a x n`,
+                viz: createXTimesYBlock(quizNNumber, i),
+                question,
+                answer
+            }
+        }
+
+        function getAXBTimeQuiz({ quizMinNumber, quizMaxNumber }) {
+            const i = randomNumberInRange(quizMinNumber, quizMaxNumber);
+            const j = randomNumberInRange(quizMinNumber, quizMaxNumber);
+
+            let question = shuffleNumbersInMult(`${localN(i)} x ${localN(j)}`);
+
+            const answer = i * j;
+
+            return {
+                quizType: 'qa',
+                name: `Multiplication: a x b`,
+                viz: createXTimesYBlock(i, j),
+                question,
+                answer
+            }
+        }
+
+        function localN(x) {
+            return x.toLocaleString();
+        }
+
+        function getADivBQuiz({ quizMinNumber, quizMaxNumber }) {
+            const j = randomNumberInRange(quizMinNumber, quizMaxNumber);
+            let i = randomNumberInRange(quizMinNumber, quizMaxNumber);
+
+            if (i === 0) {
+                i = 1;
+            }
+
+            const product = i * j;
+            let question = shuffleNumbersInMult(`${localN(product)} / ${localN(i)}`);
+
+            const answer = j;
+
+            return {
+                quizType: 'qa',
+                name: `Division: a / b`,
+                question,
+                answer
+            }
+        }
+
+        function get0PlusQuiz(ctx) {
+            return getXPlusQuiz(0, 0, ctx);
+        }
+
+        function get1PlusQuiz(ctx) {
+            return getXPlusQuiz(1, 1, ctx);
+        }
+
+        function get2PlusQuiz(ctx) {
+            return getXPlusQuiz(2, 2, ctx);
+        }
+
+        function get1Plus1PlusQuiz(ctx) {
+            return getXPlusQuiz(2, `1 + 1`, ctx);
+        }
+
+        function getWriteVocabQuiz({ quizVocabWords, quizMinNumber, quizMaxNumber }) {
+            const words = splitVocabInputToWords(quizVocabWords) || ['error'];
+            const answer = getRandomElement(words);
+
+            return {
+                quizType: 'vocab',
+                name: "Vocab: Write word",
+                speech: `${answer}`,
+                answer
+            }
+        }
+
+        function splitVocabInputToWords(str) {
+            return str?.split(",").map(x => x.trim()).filter(x => !!x)
+        }
+
+        function engLetterIndex(letter) {
+            return ENGLISH_LETTERS.findIndex(x => x === letter);
+        }
+        function getEnglishLetterCasingQuiz() {
+            return creategetEnglishLetterCasingQuiz(0, ENGLISH_LETTERS.length - 1);
+        }
+
+        function getEnglishLetterCasingAToFQuiz() {
+            return creategetEnglishLetterCasingQuiz(0, engLetterIndex("F"));
+        }
+
+        function getEnglishLetterCasingGToLQuiz() {
+            return creategetEnglishLetterCasingQuiz(engLetterIndex("G"), engLetterIndex("L"));
+        }
+
+        function getEnglishLetterCasingMToRQuiz() {
+            return creategetEnglishLetterCasingQuiz(engLetterIndex("M"), engLetterIndex("R"));
+        }
+
+        function getEnglishLetterCasingSToZQuiz() {
+            return creategetEnglishLetterCasingQuiz(engLetterIndex("S"), engLetterIndex("Z"));
+        }
+
+        const ENGLISH_LETTERS = Object.freeze([
+            "A", "B", "C", "D", "E", "F",
+            "G", "H", "I", "J", "K", "L",
+            "M", "N", "O", "P", "Q", "R",
+            "S", "T", "U", "V", "W", "X", "Y", "Z"
+        ]);
+
+        function creategetEnglishLetterCasingQuiz(startLetterIndex, endLetterIndex) {
+            const letters = ENGLISH_LETTERS.slice(startLetterIndex, endLetterIndex + 1);
+            const orderedChoices = shuffle(letters).slice(0, 3).flatMap((x) => [x, x.toLowerCase()]);
+            const choices = shuffle(orderedChoices);
+            const answer = getRandomElement(choices);
+            const casingSpeech = (/[a-z]/.test(answer)) ? "Lower" : "Upper";
+            const speech = `${casingSpeech} case ${answer}`;
+
+            return {
+                quizType: 'vocab:stt_choices',
+                name: `Vocab: Which Letter spoken? (${ENGLISH_LETTERS[startLetterIndex]} - ${ENGLISH_LETTERS[endLetterIndex]})`,
+                speech,
+                choices,
+                answer
+            }
+        }
+
+        function getPickWordSTTQuiz({ quizVocabWords, quizMinNumber, quizMaxNumber }) {
+            const words = splitVocabInputToWords(quizVocabWords) || ['error'];
+            const choices = randomElementsInArray(words, 3);
+            const answer = getRandomElement(choices);
+
+            return {
+                quizType: 'vocab:stt_choices',
+                name: "Vocab: Which Word spoken?",
+                speech: `${answer}`,
+                choices,
+                answer
+            }
+        }
+
+        function getLongOrShortVowelSTTQuiz() {
+            const vowelObj = getRandomElement(ENGLISH_VOWELS);
+            const choices = ["short vowel", "long vowel"].map(s => `${s} (${vowelObj.letter})`);
+            const isLongVowel = getRandomBool();
+            const word = getRandomElement(isLongVowel ? vowelObj.longVowel : vowelObj.shortVowel);
+            const answer = isLongVowel ? choices[1] : choices[0];
+
+            return {
+                quizType: 'vocab:stt_choices',
+                name: "Phonetics: Long vs Short vowels",
+                question: `${word}`,
+                speech: word,
+                choices,
+                answer
+            }
+        }
+
+        function getALongOrShortVowelSTTQuiz() {
+            return createLongOrShortVowelForXSTTQuiz("a");
+        }
+
+        function getELongOrShortVowelSTTQuiz() {
+            return createLongOrShortVowelForXSTTQuiz("e");
+        }
+
+        function getILongOrShortVowelSTTQuiz() {
+            return createLongOrShortVowelForXSTTQuiz("i");
+        }
+
+        function getOLongOrShortVowelSTTQuiz() {
+            return createLongOrShortVowelForXSTTQuiz("o");
+        }
+
+        function getULongOrShortVowelSTTQuiz() {
+            return createLongOrShortVowelForXSTTQuiz("u");
+        }
+
+        function createLongOrShortVowelForXSTTQuiz(letter) {
+            const vowelObj = ENGLISH_VOWELS.find(o => o.letter == letter);
+            const choices = ["short vowel", "long vowel"].map(s => `${s} (${vowelObj.letter})`);
+            const isLongVowel = getRandomBool();
+            const word = getRandomElement(isLongVowel ? vowelObj.longVowel : vowelObj.shortVowel);
+            const answer = isLongVowel ? choices[1] : choices[0];
+
+            return {
+                quizType: 'vocab:stt_choices',
+                name: `Phonetics: Long vs Short vowels - ${letter}`,
+                question: `${word}`,
+                speech: word,
+                choices,
+                answer
+            }
+        }
+
+
+        function getWriteXQuiz({ quizMinNumber, quizMaxNumber }) {
+            const answer = randomNumberInRange(quizMinNumber, quizMaxNumber);
+
+            return {
+                quizType: 'qa',
+                name: "Number: Write x",
+                speech: `${answer}`,
+                answer
+            }
+        }
+
+        function replaceRandomChar(x, newChar, minI) {
+            const parts = [...String(x)];
+            const i = randomNumberInRange((minI || 0), parts.length - 1);
+            parts[i] = newChar;
+            return parts.join("");
+        }
+
+        function getWriteXThatHas0Quiz({ quizMinNumber, quizMaxNumber }) {
+            const x = randomNumberInRange(quizMinNumber, quizMaxNumber);
+            let answer = +replaceRandomChar(x, 0, 1);
+            if (quizMaxNumber < 11) {
+                answer = 0;
+            }
+
+            return {
+                quizType: 'qa',
+                name: "Number: Write x that has 0",
+                speech: `${answer}`,
+                answer
+            }
+        }
+        function getRandomEmoji() {
+            const emojiList = [
+                { name: "monkeys", emoji: "🐵" },
+                { name: "apples", emoji: "🍎" },
+                { name: "stars", emoji: "🌟" },
+                { name: "frogs", emoji: "🐸" },
+                { name: "donuts", emoji: "🍩" },
+                { name: "rockets", emoji: "🚀" },
+                { name: "unicorns", emoji: "🦄" },
+                { name: "dinosaurs", emoji: "🦖" },
+                { name: "teddy bears", emoji: "🧸" },
+                { name: "pizzas", emoji: "🍕" },
+                { name: "balloons", emoji: "🎈" }
+            ];
+            const randomIndex = Math.floor(Math.random() * emojiList.length);
+            return emojiList[randomIndex];
+        }
+
+        function getMatrixEqualsProductQuiz({ quizNNumber }) {
+            const emojiData = getRandomEmoji();
+            const y = randomNumberInRange(1, 12);
+            const image = createAsciiGrid(emojiData.emoji, quizNNumber, y);
+            const question = `How many ${emojiData.name}?\n\n===\n\n${image} \n\n===`;
+            const answer = quizNNumber * y;
+
+            return {
+                quizType: 'qa',
+                name: "Multiplication: Image: n x b = ?",
+                question,
+                answer
+            }
+        }
+
+        function getABMatrixEqualsProductQuiz({ quizMinNumber, quizMaxNumber }) {
+            const emojiData = getRandomEmoji();
+            const x = randomNumberInRange(quizMinNumber, quizMaxNumber);
+            const y = randomNumberInRange(1, 12);
+            const image = createAsciiGrid(emojiData.emoji, x, y);
+            const question = `How many ${emojiData.name}?\n\n===\n\n${image} \n\n===`;
+            const answer = x * y;
+
+            return {
+                quizType: 'qa',
+                name: "Multiplication: Image: a x b = ?",
+                question,
+                answer
+            }
+        }
+
+        function getXTimesWhatEqualsProductQuiz({ quizNNumber }) {
+            const answer = randomNumberInRange(0, 12);
+            const question = `${quizNNumber} x ? = ${answer * quizNNumber}`;
+
+            return {
+                quizType: 'qa',
+                name: "Multiplication: a x ? = c",
+                question,
+                answer
+            }
+        }
+
+        function placeValue(n, i) {
+            return String(n).split("").at(-1 * (1 + i)) || "0";
+        }
+
+        function getPlaceValueQuiz({ quizMinNumber, quizMaxNumber }) {
+            const x = randomNumberInRange(quizMinNumber, quizMaxNumber);
+
+            if (getRandomBool()) {
+                question = `What's the 1s of ${x}?`;
+                answer = placeValue(x, 0);
+            } else if (getRandomBool()) {
+                question = `What's the 10s of ${x}?`;
+                answer = placeValue(x, 1);
+            } else if (getRandomBool()) {
+                question = `What's the 100s of ${x}?`;
+                answer = placeValue(x, 2);
+            } else {
+                question = `What's the 1,000s of ${x}?`;
+                answer = placeValue(x, 3);
+            }
+
+            return {
+                quizType: 'qa',
+                name: `Number: Place value`,
+                question,
+                answer
+            }
+        }
+
+        function getMissingNumberPlusXQuiz(nameSuffix, x, { quizMinNumber, quizMaxNumber }) {
+            const range = getRandomRange(quizMinNumber, quizMaxNumber).map(n => n * x);
+
+            const i = randomNumberInRange(0, range.length - 1);
+            const answer = range[i];
+            range[i] = '?';
+
+            const rangeText = range.map(formatNumber).join(', ');
+            const question = `f(i) = f(i-1) + ${x};
+
+${rangeText}`;
+
+            return {
+                name: `Sequence: Next number${nameSuffix}`,
+                quizType: 'qa',
+                question,
+                answer
+            }
+        }
+
+        function getMissingNumberPlusNQuiz(options) {
+            return getMissingNumberPlusXQuiz(" + n", options.quizNNumber, options);
+        }
+
+        function getMissingNumberPlus1Quiz(options) {
+            return getMissingNumberPlusXQuiz(" + 1", 1, options);
+        }
+
+        function getMissingNumberPlus5Quiz(options) {
+            return getMissingNumberPlusXQuiz(" + 5", 5, options);
+        }
+
+        function getMissingNumberPlus10Quiz(options) {
+            return getMissingNumberPlusXQuiz(" + 10", 10, options);
+        }
+
+        function getFOfXQuiz({ quizMinNumber, quizMaxNumber }) {
+            const x = randomNumberInRange(quizMinNumber, quizMaxNumber);
+            const y = randomNumberInRange(quizMinNumber, quizMaxNumber);
+
+            const answer = x + y;
+            const question = `f(x) = x + ${x};
+f(${y}) == ?`;
+
+            return {
+                name: "Functions: f(x) = x + y",
+                quizType: 'qa',
+                question,
+                answer
+            }
+        }
+
+        function getFOfXGivenNQuiz({ quizMinNumber, quizMaxNumber, quizNNumber }) {
+            const x = randomNumberInRange(quizMinNumber, quizMaxNumber);
+
+            const answer = x + quizNNumber;
+            const question = `f(x) = x + ${quizNNumber};
+f(${x}) == ?`;
+
+            return {
+                name: "Functions: f(x) = x + n",
+                quizType: 'qa',
+                question,
+                answer
+            }
+        }
+
+        function getXAddYQuiz({ quizMinNumber, quizMaxNumber }) {
+            const x = randomNumberInRange(quizMinNumber, quizMaxNumber);
+            const y = randomNumberInRange(quizMinNumber, quizMaxNumber);
+
+            const answer = x + y;
+            const question = `${x} + ${y}`;
+
+            return {
+                name: "Addition: x + y",
+                quizType: 'qa',
+                question,
+                answer
+            }
+        }
+
+        function getXAddYAddZQuiz({ quizMinNumber, quizMaxNumber }) {
+            const x = randomNumberInRange(quizMinNumber, quizMaxNumber);
+            const y = randomNumberInRange(quizMinNumber, quizMaxNumber);
+            const z = randomNumberInRange(quizMinNumber, quizMaxNumber);
+
+            const answer = x + y + z;
+            const question = `${x} + ${y} + ${z}`;
+
+            return {
+                name: "Addition: x + y + z",
+                quizType: 'qa',
+                question,
+                answer
+            }
+        }
+
+        function getPosXMinusYQuiz({ quizMinNumber, quizMaxNumber }) {
+            let x = randomNumberInRange(quizMinNumber, quizMaxNumber);
+            let y = randomNumberInRange(quizMinNumber, quizMaxNumber);
+
+            if (x < y) {
+                [x, y] = [y, x];
+            }
+
+            const answer = x - y;
+            const question = `${x} - ${y}`;
+
+            return {
+                name: "Subtraction: (+) x - y",
+                quizType: 'qa',
+                question,
+                answer
+            }
+        }
+
+        function getXMinusYQuiz({ quizMinNumber, quizMaxNumber }) {
+            const x = randomNumberInRange(quizMinNumber, quizMaxNumber);
+            const y = randomNumberInRange(quizMinNumber, quizMaxNumber);
+
+            const answer = x - y;
+            const question = `${x} - ${y}`;
+
+            return {
+                name: "Subtraction: x - y",
+                quizType: 'qa',
+                question,
+                answer
+            }
+        }
+
+        function getXMinusYMinusZQuiz({ quizMinNumber, quizMaxNumber }) {
+            const x = randomNumberInRange(quizMinNumber, quizMaxNumber);
+            const y = randomNumberInRange(quizMinNumber, quizMaxNumber);
+            const z = randomNumberInRange(quizMinNumber, quizMaxNumber);
+
+            const answer = x - y - z;
+            const question = `${x} - ${y} - ${z}`;
+
+            return {
+                name: "Subtraction: x - y - z",
+                quizType: 'qa',
+                question,
+                answer
+            }
+        }
+
+        function twoPad(n) {
+            return ("" + n).padStart(2, 0);
+        }
+
+        // TODO quiz; words that rhyme
+        // TODO quiz: say word, pick word amoung group of words 
+        // TODO quiz: say word, repeat it
+
+        // TODO quiz: What time is it? analog clock 
+        // TODO quiz: What hour is it? analog clock 
+        // TODO quiz: What min is it? analog clock 
+
+        // TODO quiz: Is the time in the evening, afternoon or morning?
+        // TODO quiz: Is the time in the evening, afternoon or morning?
+        // TODO quiz: What time is later?
+        // TODO quiz: What time is earlier?
+        // TODO quiz: Is time x within time boundary?
+
+        function getXClockQuiz({ quizMinNumber, quizMaxNumber }) {
+            const hour = twoPad(randomNumberInRange(1, 13));
+            const min = twoPad(randomNumberInRange(0, 60));
+            const amPM = getRandomElement(["am", "pm"]);
+
+            const question = `${hour}:${min} ${amPM}`;
+            const answer = question;
+
+            return {
+                name: "Clock: What time?",
+                quizType: 'qa',
+                question,
+                answer
+            }
+        }
+
+        function getGreaterThanQuiz({ quizMinNumber, quizMaxNumber }) {
+            const x = randomNumberInRange(quizMinNumber, quizMaxNumber - 1);
+            let y = randomNumberInRange(x, quizMaxNumber);
+            y = Math.max(x + 1, y);
+
+            const isGreaterThan = getRandomBool();
+
+            let question = `Is ${x} smaller than ${y}?\n\n${x} < ${y}`;
+            let answer = x < y;
+
+            if (isGreaterThan) {
+                question = `Is ${x} bigger than ${y}?\n\n${x} > ${y}`;
+                answer = x > y;
+            }
+
+            return {
+                name: "Comparison: Bigger or Smaller",
+                quizType: 'tf',
+                question,
+                // TODO: Is there a better to do this?
+                viz: createXYBlock(x, y),
+                answer
+            }
+        }
+
+        // return (a+b) == (c+d) but sometimes d is different so it's not equal 
+        function getTwoEquationData({ quizMinNumber, quizMaxNumber, quizNNumber }) {
+            const a = quizMinNumber + randomNumberInRange(0, quizMaxNumber - quizMinNumber);
+            const b = randomNumberInRange(0, quizMaxNumber - a);
+            const c = randomNumberInRange(0, quizMaxNumber);
+            let d = Math.max(0, (a + b) - c);
+
+            if (getRandomBool()) {
+                d = randomNumberInRange(0, Math.floor(quizMaxNumber / 2));
+            }
+
+            return {
+                a, b, c, d
+            }
+        }
+
+        function getTwoEquationsSameAdditionQuiz({ quizMinNumber, quizMaxNumber, quizNNumber }) {
+            const eq = getTwoEquationData({ quizMinNumber, quizMaxNumber, quizNNumber });
+
+            const eq1 = shuffleNumbersInAddition(`${eq.a} + ${eq.b}`);
+            const eq2 = shuffleNumbersInAddition(`${eq.c} + ${eq.d}`);
+
+            let question = `Do they equal?\n\n${eq1} == ${eq2}`;
+
+            let answer = eval(`${eq1} == ${eq2}`);
+            const viz = `${eq1} ?== ${eq2}\n${eq.a + eq.b} ?== ${eq.c + eq.d}`;
+
+            return {
+                name: "Addition/Comparison: Are Equations Same?",
+                quizType: 'tf',
+                question,
+                viz,
+                answer
+            }
+        }
+
+        function getPreKAlgebraAdditionXTwoEquationQuiz({ quizMinNumber, quizMaxNumber, quizNNumber }) {
+            const eq = getTwoEquationData({ quizMinNumber, quizMaxNumber, quizNNumber });
+
+            const eq1 = shuffleNumbersInAddition(`x + ${eq.b}`);
+            const eq2 = shuffleNumbersInAddition(`${eq.a} + ${eq.b}`);
+
+            let question = `What is x?\n\n${eq1} == ${eq2}`;
+
+            let answer = eq.a;
+
+            return {
+                name: "Algebra: Prek / Addition only / What's x?",
+                quizType: 'qa',
+                question,
+                answer
+            }
+        }
+
+
+        function getAlgebraAdditionXTwoEquationQuiz({ quizMinNumber, quizMaxNumber, quizNNumber }) {
+            const eq = getTwoEquationData({ quizMinNumber, quizMaxNumber, quizNNumber });
+
+            const eq1 = shuffleNumbersInAddition(`x + ${eq.b}`);
+
+            let question = `What is x?\n\n${eq1} == ${eq2}`;
+
+            let answer = eq.a;
+
+            return {
+                name: "Algebra: Addition only / What's x?",
+                quizType: 'qa',
+                question,
+                answer
+            }
+        }
+
+        function sortNumsAndJoin(a, b, delimiter) {
+            return sortNums([a, b]).join(delimiter);
+        }
+
+        /**
+         * Creates an ASCII grid of the character/string `x`, sized `a` by `b`.
+         * After every `spacePadding` columns horizontally, a delimiter (`delimiterSpacer`) is inserted.
+         * After every `spacePadding` rows vertically, an entire delimiter line is inserted.
+         *
+         * @param {string}  x                The character or string to print in each cell.
+         * @param {number}  a                Number of columns.
+         * @param {number}  b                Number of rows.
+         * @param {number}  [spacePadding=5] After every N columns/rows, insert delimiter(s).
+         * @param {string}  [delimiterSpacer=" "] Delimiter to insert after `spacePadding` columns or rows.
+         * @returns {string}                 The resulting ASCII grid.
+         */
+        function createAsciiGrid(
+        x, 
+        a, 
+        b, 
+        spacePadding = 5, 
+        delimiterSpacer = " "
+        ) {
+            let lines = [];
+
+            for (let row = 1; row <= b; row++) {
+                let rowString = "";
+
+                // Build up a single row
+                for (let col = 1; col <= a; col++) {
+                // Add the main character/string
+                rowString += x;
+
+                // If not at the last column, you might insert a small spacing (optional)
+                // rowString += ' '; // Uncomment if you want a small space between cells
+
+                // If we've hit a 'spacePadding' boundary and not at the final column, insert the delimiter
+                if (col % spacePadding === 0 && col !== a) {
+                    rowString += delimiterSpacer;
+                }
+                }
+
+                // Push this row into our lines array
+                lines.push(rowString);
+
+                // After every `spacePadding` rows, and if not at the last row, add a delimiter line
+                if (row % spacePadding === 0 && row !== b) {
+                let delimiterLine = "";
+
+                // Build a line of delimiters that spans the width of the columns (with optional spacing logic)
+                for (let col = 1; col <= a; col++) {
+                    delimiterLine += delimiterSpacer;
+                    // Optionally add spacing or other markers here:
+                    // delimiterLine += " ";
+                    
+                    // If you want to align with the same logic horizontally:
+                    if (col % spacePadding === 0 && col !== a) {
+                    delimiterLine += delimiterSpacer;
+                    }
+                }
+                lines.push(delimiterLine);
+                }
+            }
+
+            // Join the lines with newlines
+            return lines.join("\n");
+        }
+
+    
+
+        function getTwoEquationsSameSubtractionQuiz({ quizMinNumber, quizMaxNumber, quizNNumber }) {
+            const eq = getTwoEquationData({ quizMinNumber, quizMaxNumber, quizNNumber });
+            let a = eq.a;
+            let b = eq.b;
+            let c = eq.c;
+            let d = eq.d;
+
+            if (a < b) {
+                let t = b;
+                b = a;
+                a = t;
+            }
+
+            if (c < d) {
+                let t = d;
+                d = c;
+                c = t;
+            }
+
+            const eq1 = `${a} - ${b}`;
+            const eq2 = `${c} - ${d}`;
+
+            let question = `Do they equal?\n\n${eq1} == ${eq2}`;
+
+            let answer = eval(`${eq1} == ${eq2}`);
+            const viz = `${eq1} ?== ${eq2}\n${a - b} ?== ${c - d}`;
+
+            return {
+                name: "Subtraction/Comparison: Are Equations Same?",
+                quizType: 'tf',
+                question,
+                viz,
+                answer
+            }
+        }
+
+        function getBiggestNumberQuiz({ quizMinNumber, quizMaxNumber }) {
+            const numbers = randomNumbersInRange(quizMinNumber, quizMaxNumber, 3);
+            let question = `What is the biggest number? \n${numbers.join(', ')}`;
+            let answer = sortNums(numbers).pop();
+
+            return {
+                name: "Comparison: Largest Number",
+                quizType: 'qa',
+                question,
+                answer
+            }
+        }
+
+        function getSmallestNumberQuiz({ quizMinNumber, quizMaxNumber }) {
+            const numbers = randomNumbersInRange(quizMinNumber, quizMaxNumber, 3);
+            let question = `What is the smallest number? \n${numbers.join(', ')}`;
+            let answer = sortNums(numbers)[0];
+
+            return {
+                name: "Comparison: Smallest Number",
+                quizType: 'qa',
+                question,
+                answer
+            }
+        }
+
+        function getNPlusXQuiz({ quizNNumber, quizMinNumber, quizMaxNumber }) {
+            const x = randomNumberInRange(quizMinNumber, quizMaxNumber + 1);
+
+            const question = shuffleNumbersInAddition(`${x} + ${quizNNumber}`);
+            const answer = x + quizNNumber;
+
+            return {
+                name: "Addition: x + n",
+                quizType: 'qa',
+                question,
+                answer
+            }
+        }
+
+        createApp({
+            async created() {
+                await SpeechService.init();
+                this.voices = await SpeechService.getVoiceDetails();
+            },
+            data() {
+                return {
+                    voiceChoice: "",
+                    useRandomVoice: true,
+                    rangeViz: null,
+                    userAnswer: null,
+                    answerState: null,
+                    quizzes: [
+                        getALongOrShortVowelSTTQuiz, getELongOrShortVowelSTTQuiz, getILongOrShortVowelSTTQuiz,
+                        getOLongOrShortVowelSTTQuiz, getULongOrShortVowelSTTQuiz,
+                        getLongOrShortVowelSTTQuiz,
+                        getPreKAlgebraAdditionXTwoEquationQuiz,
+                        getEnglishLetterCasingQuiz, getEnglishLetterCasingAToFQuiz, getEnglishLetterCasingGToLQuiz,
+                        getEnglishLetterCasingMToRQuiz, getEnglishLetterCasingSToZQuiz,
+                        getTwoEquationsSameAdditionQuiz, getTwoEquationsSameSubtractionQuiz,
+                        getDigitalClockQuiz, getTimePickerQuiz,
+                        getDatePartQuiz, getDatePickerQuiz,
+                        getMissingNumberPlusNQuiz, getMissingNumberPlus1Quiz, getMissingNumberPlus5Quiz, getMissingNumberPlus10Quiz,
+                        getFOfXQuiz, getFOfXGivenNQuiz,
+                        getADivBQuiz,
+                        getPlaceValueQuiz,
+                        getAXNTimeQuiz, getAXBTimeQuiz, getXTimesWhatEqualsProductQuiz, getMatrixEqualsProductQuiz, getABMatrixEqualsProductQuiz,
+                        getWriteVocabQuiz, getPickWordSTTQuiz,
+                        getBiggestNumberQuiz, getSmallestNumberQuiz,
+                        getGreaterThanQuiz, get0PlusQuiz, get1PlusQuiz,
+                        get2PlusQuiz, get1Plus1PlusQuiz,
+                        getWriteXQuiz, getWriteXThatHas0Quiz, getXAddYQuiz, getXAddYAddZQuiz,
+                        getPosXMinusYQuiz, getXMinusYQuiz, getXMinusYMinusZQuiz, getNPlusXQuiz
+                    ],
+                    quiz: null,
+                    quizName: null,
+                    quizNNumber: 3,
+                    quizMinNumber: 0,
+                    quizMaxNumber: 12,
+                    quizVocabWords: [
+                        // 1st grade: week 9
+                        // 'with,next,need,speed,last,past,could,should,near,hear,fasten,appear',
+                        // 'much,went,sent,pool,cool,know,snow,blow,our,sour,school,marshmallow',
+                        'people,some,flew,grew,stew,knew,stray,away,sway,layer,somebody,interview,nephew,wednesday,multilayer'
+                    ].join(","),
+                    quizUserAttempts: [],
+                    storageService: new StorageService(),
+                    voice: null,
+                    voices: null
+                }
+            },
+            mounted() {
+                this.quizName = this.storageService.fetchLastQuizName() || this.quizzes[0].name;
+                this.newQuiz();
+            },
+            methods: {
+                createRangeViz() {
+                    const items = [];
+
+                    for (let i = this.quizMinNumber; i <= this.quizMaxNumber; i++) {
+                        items.push(i);
+                    }
+
+                    this.rangeViz = items.join(', ');
+                },
+                sayIt(text) {
+                    SpeechService.sayIt({
+                        text,
+                        useRandomVoice: this.useRandomVoice,
+                        voiceChoice: this.voiceChoice
+                    });
+                },
+                setDiffEasy() {
+                    this.quizMinNumber = 0;
+                    this.quizMaxNumber = 10;
+                    this.newQuiz();
+                },
+                setDiffNormal() {
+                    this.quizMinNumber = 0;
+                    this.quizMaxNumber = 100;
+                    this.newQuiz();
+                },
+                setDiffHard() {
+                    this.quizMinNumber = 0;
+                    this.quizMaxNumber = 1000;
+                    this.newQuiz();
+                },
+                newQuiz() {
+                    this.resetAttempts();
+                    this.answerState = null;
+                    this.userAnswer = null;
+                    this.createQuizFn = this.quizzes.find(fn => fn.name == this.quizName);
+                    if(!this.createQuizFn){
+                        console.error(`Unable to find quizName: ${this.quizName}`);
+                    }
+
+                    this.quiz = this.createQuizFn({
+                        quizVocabWords: this.quizVocabWords,
+                        quizNNumber: this.quizNNumber,
+                        quizMaxNumber: this.quizMaxNumber,
+                        quizMinNumber: this.quizMinNumber
+                    });
+                },
+                setAndCheckAnswer(answer) {
+                    this.userAnswer = answer;
+                    this.checkAnswer();
+                },
+                checkAnswer() {
+                    if (this.userAnswer != null) {
+                        const attempt = {};
+                        attempt.isCorrect = this.quiz.answer == this.userAnswer;
+                        this.quizUserAttempts.push(attempt);
+
+                        this.answerState = attempt.isCorrect;
+                    } else {
+                        this.answerState = null;
+                    }
+                },
+                resetAttempts() {
+                    this.quizUserAttempts = [];
+                }
+            },
+            watch: {
+                quizName(newQuizName, oldQuizName){
+                    this.storageService.saveLastQuizName(newQuizName);
+                }
+            },
+            computed: {
+                quizUserAttemptCorrect() {
+                    return this.quizUserAttempts.filter(attempt => attempt.isCorrect).length;
+                },
+                answerStateClass() {
+                    return {
+                        "rightAnswer": this.answerState === true,
+                        "wrongAnswer": this.answerState === false,
+                    };
+                },
+                quizOptions() {
+                    return this.quizzes.map((fn, i) => {
+                        return {
+                            name: fn({}).name,
+                            value: fn.name
+                        }
+                    }).sort((a, b) => {
+                        return a.name.localeCompare(b.name);
+                    });
+                }
+            }
+        }).mount('#app');
+
+    // Register the service worker for offline capability
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('service-worker.js')
+        .then((registration) => {
+          console.log('Service Worker registered:', registration);
+        })
+        .catch((error) => {
+          console.log('Service Worker registration failed:', error);
+        });
+    }
+    </script>
+</body>
+
+</html>

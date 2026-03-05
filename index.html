@@ -617,8 +617,12 @@
             <div class="section-divider"></div>
         </div>
         <div class="skills-grid">
-            <div class="skill-group reveal" v-for="(group, i) in skillGroups" :key="i" :style="{ transitionDelay: (i * 0.08) + 's' }">
-                <div class="skill-group-icon"><i :class="group.icon"></i></div>
+            <div class="skill-group reveal" v-for="(group, i) in projectGroups" :key="i" :style="{ transitionDelay: (i * 0.08) + 's' }">
+                <!-- <div class="skill-group-icon"> -->
+                     <a :href="group.url" class="social-link">
+                        <i :class="group.icon"></i>
+                    </a>
+                <!-- </div> -->
                 <div class="skill-group-title">{{ group.title }}</div>
                 <div class="skill-tags">
                     <span class="skill-tag" v-for="skill in group.skills" :key="skill">{{ skill }}</span>
@@ -819,7 +823,14 @@ createApp({
             { icon: 'fa-solid fa-chart-line', title: 'Observability', skills: ['Splunk', 'Datadog'] },
             { icon: 'fa-solid fa-arrows-spin', title: 'Workflow', skills: ['Agile / Scrum', 'Code Review', 'Mentoring', 'TDD'] },
         ];
-
+        const projectGroups = [
+            { icon: 'fa-solid fa-display', title: 'Languages', skills: ['This is a react Project'] ,url : ''},
+            { icon: 'fa-solid fa-display', title: 'Frontend', skills: ['React.js','Typescript','Next.js','Vue.js', 'Angular', 'HTML5', 'CSS3', 'Sass'] },
+            { icon: 'fa-solid fa-display', title: 'Backend & Data', skills: ['Spring Boot', 'MySQL', 'Cassandra', 'Redis'] },
+            { icon: 'fa-solid fa-display', title: 'Cloud & Infra', skills: ['AWS', 'Kubernetes', 'Docker', 'CI/CD', 'Nginx'] },
+            { icon: 'fa-solid fa-display', title: 'Observability', skills: ['Splunk', 'Datadog'] },
+            { icon: 'fa-solid fa-display', title: 'Workflow', skills: ['Agile / Scrum', 'Code Review', 'Mentoring', 'TDD'] },
+        ];
         const certifications = [
             { icon: 'fa-solid fa-trophy', title: '1st Place — Firm-wide Hackathon', issuer: 'HubSpot.Inc · 2022' },
             { icon: 'fa-solid fa-trophy', title: '4th Place — Firm-wide Hackathon', issuer: 'HubSpot.Inc · 2023' },
@@ -870,7 +881,7 @@ createApp({
 
         return {
             darkMode, scrolled, mobileNavOpen, navLinks, socials,
-            stats, aboutDetails, experience, skillGroups, certifications, goals,
+            stats, aboutDetails, experience, skillGroups,projectGroups, goals,
             toggleTheme, showAvailableBanner, resumePdfUrl, profileImage,
             avatarAnimClass, replayAvatar,
         };
